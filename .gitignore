@@ -1,0 +1,16 @@
+# Ignore Python environments and caches
+backend/venv/
+backend/__pycache__/
+backend/.pytest_cache/
+*.pyc
+
+# Ignore local storage (prevents test data from overwriting other developers' environments)
+backend/data/storage.json
+
+# Ignore Node.js / Frontend dependencies and build files (prepared for later steps)
+frontend/node_modules/
+frontend/.next/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
