@@ -4,6 +4,8 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.schemas import Pipeline, PipelineCreate, PipelineStatus
 from app.repositories.pipeline_repository import JSONPipelineRepository
+import asyncio
+import random
 
 app = FastAPI(title="NMS Pipeline Simulator API")
 
@@ -35,6 +37,28 @@ def create_pipeline(payload: PipelineCreate, repo: JSONPipelineRepository = Depe
         status=PipelineStatus.PENDING
     )
     return repo.save(new_pipeline)
+
+async def simulate_pipeline_execution(pipeline_id: str, repo: JSONPipelineRepository):
+    """
+    Simulates a heavy medical image analysis in the background.
+    Steps: PENDING -> RUNNING -> SUCCESS (or FAILED)
+    """
+    # 1. Stay in PENDING for 3 seconds, then transition to RUNNING
+    await asyncio.sleep(3)
+    pipeline = repo.get_by_id(pipeline_id)
+    if pipeline:
+        pipeline.status = PipelineStatus.RUNNING
+        repo.save(pipeline)
+        print(f"Pipeline {pipeline_id} is now RUNNING.")
+
+    # 2. Simulate processing time (e.g., AI model interpreting a scan)
+    await asyncio.sleep(5)
+    pipeline = repo.get_by_id(pipeline_id)
+    if pipeline:
+        # 90% chance of SUCCESS, 10% chance of FAILED to test error responses later
+        pipeline.status = PipelineStatus.SUCCESS if random.random() > 0.1 else PipelineStatus.FAILED
+        repo.save(pipeline)
+        print(f"Pipeline {pipeline_id} finished with status: {pipeline.status}")
 
 # Endpoint to start a pipeline execution
 @app.post("/api/pipelines/{pipeline_id}/start", response_model=Pipeline)
