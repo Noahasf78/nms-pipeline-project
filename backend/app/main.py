@@ -1,6 +1,6 @@
 import uuid
 from typing import List
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks  # Alt samlet på én linje!
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.schemas import Pipeline, PipelineCreate, PipelineStatus
 from app.repositories.pipeline_repository import JSONPipelineRepository
@@ -62,12 +62,28 @@ async def simulate_pipeline_execution(pipeline_id: str, repo: JSONPipelineReposi
 
 # Endpoint to start a pipeline execution
 @app.post("/api/pipelines/{pipeline_id}/start", response_model=Pipeline)
-def start_pipeline(pipeline_id: str, repo: JSONPipelineRepository = Depends(get_repository)):
+def start_pipeline(
+    pipeline_id: str, 
+    background_tasks: BackgroundTasks, 
+    repo: JSONPipelineRepository = Depends(get_repository)
+):
+    """
+    Triggers the pipeline execution asynchronously in the background.
+    """
     pipeline = repo.get_by_id(pipeline_id)
     if not pipeline:
-        raise HTTPException(status_code=404, detail="Pipeline ikke funnet")
+        raise HTTPException(status_code=404, detail="Pipeline not found")
     
-    # Temporary placeholder: Changes status instantly. 
-    # Will be replaced with an async background simulation on Day 2!
-    pipeline.status = PipelineStatus.RUNNING
-    return repo.save(pipeline)
+    # Validation: Prevent starting a pipeline that is already processing
+    if pipeline.status == PipelineStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Pipeline is already running")
+
+    # Set initial state back to PENDING when started
+    pipeline.status = PipelineStatus.PENDING
+    repo.save(pipeline)
+
+    # Hand over the simulation job to FastAPI's background task manager
+    background_tasks.add_task(simulate_pipeline_execution, pipeline_id, repo)
+    
+    # Return immediately so the API stays non-blocking
+    return pipeline
