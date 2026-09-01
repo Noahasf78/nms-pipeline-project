@@ -1,24 +1,24 @@
 import uuid
-from typing import List
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks  # Alt samlet på én linje!
-from fastapi.middleware.cors import CORSMiddleware
-from app.core.schemas import Pipeline, PipelineCreate, PipelineStatus
-from app.repositories.pipeline_repository import JSONPipelineRepository
 import asyncio
 import random
+from typing import List
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.schemas import Pipeline, PipelineCreate, PipelineStatus, LogEntry
+from app.repositories.pipeline_repository import JSONPipelineRepository
 
 app = FastAPI(title="NMS Pipeline Simulator API")
 
-# Enable CORS so Next.js frontend (on another port) can safely talk to the backend
+# Enable CORS so Next.js frontend can safely talk to the backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],    # Restrict to frontend URL in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Dependency Injection provider for the repository layer
+# Dependency Injection provider for repository
 def get_repository() -> JSONPipelineRepository:
     return JSONPipelineRepository()
 
@@ -31,59 +31,72 @@ def get_pipelines(repo: JSONPipelineRepository = Depends(get_repository)):
 @app.post("/api/pipelines", response_model=Pipeline)
 def create_pipeline(payload: PipelineCreate, repo: JSONPipelineRepository = Depends(get_repository)):
     new_pipeline = Pipeline(
-        id=str(uuid.uuid4())[:8],   # Generate a short unique ID
+        id=str(uuid.uuid4())[:8],
         name=payload.name,
         description=payload.description,
-        status=PipelineStatus.PENDING
+        status=PipelineStatus.PENDING,
+        logs=[
+            LogEntry(
+                message="Pipeline initialized and registered in system.",
+                level="INFO"
+            )
+        ]
     )
     return repo.save(new_pipeline)
 
 async def simulate_pipeline_execution(pipeline_id: str, repo: JSONPipelineRepository):
     """
-    Simulates a heavy medical image analysis in the background.
-    Steps: PENDING -> RUNNING -> SUCCESS (or FAILED)
+    Simulates a 3-step medical image analysis in the background with continuous logging.
     """
-    # 1. Stay in PENDING for 3 seconds, then transition to RUNNING
-    await asyncio.sleep(3)
+    # Step 1: Initialize execution
+    await asyncio.sleep(2)
     pipeline = repo.get_by_id(pipeline_id)
     if pipeline:
         pipeline.status = PipelineStatus.RUNNING
         repo.save(pipeline)
-        print(f"Pipeline {pipeline_id} is now RUNNING.")
+        repo.append_log(pipeline_id, "Execution started. Processing container spawned.", "INFO")
 
-    # 2. Simulate processing time (e.g., AI model interpreting a scan)
-    await asyncio.sleep(5)
+    # Step 2: Ingest & Preprocess DICOM
+    await asyncio.sleep(2.5)
+    repo.append_log(pipeline_id, "Step 1/3: Ingesting DICOM series and normalizing voxel intensities.", "INFO")
+
+    # Step 3: Run AI Model Inference
+    await asyncio.sleep(2.5)
+    repo.append_log(pipeline_id, "Step 2/3: Executing 3D UNet segmentation model on GPU.", "INFO")
+
+    # Step 4: Finalize and export
+    await asyncio.sleep(2)
     pipeline = repo.get_by_id(pipeline_id)
     if pipeline:
-        # 90% chance of SUCCESS, 10% chance of FAILED to test error responses later
-        pipeline.status = PipelineStatus.SUCCESS if random.random() > 0.1 else PipelineStatus.FAILED
-        repo.save(pipeline)
-        print(f"Pipeline {pipeline_id} finished with status: {pipeline.status}")
+        is_success = random.random() > 0.10  # 90% success rate
+        if is_success:
+            pipeline.status = PipelineStatus.SUCCESS
+            repo.save(pipeline)
+            repo.append_log(pipeline_id, "Step 3/3: Segmentation mask exported to PACS successfully.", "SUCCESS")
+        else:
+            pipeline.status = PipelineStatus.FAILED
+            repo.save(pipeline)
+            repo.append_log(pipeline_id, "Step 3/3: Process terminated: Out of VRAM during mask reconstruction.", "ERROR")
 
-# Endpoint to start a pipeline execution
+# Endpoint to start pipeline execution
 @app.post("/api/pipelines/{pipeline_id}/start", response_model=Pipeline)
 def start_pipeline(
     pipeline_id: str, 
     background_tasks: BackgroundTasks, 
     repo: JSONPipelineRepository = Depends(get_repository)
 ):
-    """
-    Triggers the pipeline execution asynchronously in the background.
-    """
     pipeline = repo.get_by_id(pipeline_id)
     if not pipeline:
         raise HTTPException(status_code=404, detail="Pipeline not found")
     
-    # Validation: Prevent starting a pipeline that is already processing
     if pipeline.status == PipelineStatus.RUNNING:
         raise HTTPException(status_code=400, detail="Pipeline is already running")
 
-    # Set initial state back to PENDING when started
+    # Reset status to PENDING and append start request log
     pipeline.status = PipelineStatus.PENDING
     repo.save(pipeline)
+    repo.append_log(pipeline_id, "Execution queued by user.", "INFO")
 
-    # Hand over the simulation job to FastAPI's background task manager
+    # Dispatch to background tasks
     background_tasks.add_task(simulate_pipeline_execution, pipeline_id, repo)
-    
-    # Return immediately so the API stays non-blocking
     return pipeline
