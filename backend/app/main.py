@@ -9,7 +9,7 @@ import random
 
 app = FastAPI(title="NMS Pipeline Simulator API")
 
-# Enable CORS so our Next.js frontend (on another port) can safely talk to the backend
+# Enable CORS so Next.js frontend (on another port) can safely talk to the backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],    # Restrict to frontend URL in production
