@@ -1,7 +1,8 @@
 import json
 import os
+from datetime import datetime
 from typing import List, Optional
-from app.core.schemas import Pipeline
+from app.core.schemas import Pipeline, LogEntry
 
 class JSONPipelineRepository:
     def __init__(self, file_path: str = "data/storage.json"):
@@ -18,7 +19,10 @@ class JSONPipelineRepository:
     # Helper method to read raw data from the JSON file
     def _read_file(self) -> List[dict]:
         with open(self.file_path, "r") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
 
     # Helper method to save raw data back to the JSON file
     def _write_file(self, data: List[dict]):
@@ -41,6 +45,7 @@ class JSONPipelineRepository:
     # Handle both creating new pipelines and updating existing ones
     def save(self, pipeline: Pipeline) -> Pipeline:
         pipelines = self.get_all()
+        pipeline.updated_at = datetime.utcnow()
         
         # If pipeline exists, update it in place
         for i, p in enumerate(pipelines):
@@ -53,3 +58,13 @@ class JSONPipelineRepository:
         pipelines.append(pipeline)
         self._write_file([p.model_dump() for p in pipelines])
         return pipeline
+
+    # Append a structured log message to a specific pipeline
+    def append_log(self, pipeline_id: str, message: str, level: str = "INFO") -> Optional[Pipeline]:
+        pipeline = self.get_by_id(pipeline_id)
+        if not pipeline:
+            return None
+        
+        new_log = LogEntry(message=message, level=level, timestamp=datetime.utcnow())
+        pipeline.logs.append(new_log)
+        return self.save(pipeline)
