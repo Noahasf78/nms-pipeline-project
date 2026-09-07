@@ -1,7 +1,7 @@
 'use client';
 
-// Standard React hooks for state management, side effects, and persistent references
-import { useState, useEffect, useRef } from 'react';
+// Standard React hooks for state management, computed values, side effects, and persistent references
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 // Custom hook wrapping TanStack Query for remote API communication
 import { usePipelines } from '../hooks/usePipelines';
@@ -12,9 +12,11 @@ import { PipelineStatus, LogEntry } from '../types/pipeline';
 // Notification toast library for user feedback
 import toast from 'react-hot-toast';
 
+// Filter options supported in the dashboard view
+type FilterStatus = 'ALL' | PipelineStatus;
+
 /**
  * Helper function to map pipeline status to appropriate color-coded UI badges.
- * Provides instant visual context on the lifecycle state of each processing task.
  */
 const getStatusBadge = (status: PipelineStatus) => {
   switch (status) {
@@ -25,7 +27,6 @@ const getStatusBadge = (status: PipelineStatus) => {
         </span>
       );
     case 'RUNNING':
-      // Pulse animation indicates active computation in the background
       return (
         <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-300 animate-pulse">
           RUNNING...
@@ -48,7 +49,6 @@ const getStatusBadge = (status: PipelineStatus) => {
 
 /**
  * Helper function to apply specific styling depending on log severity level.
- * Mirrors classic IDE / Linux terminal color schemes (e.g. red for errors, emerald for success).
  */
 const getLogLevelColor = (level: string) => {
   switch (level) {
@@ -67,6 +67,10 @@ export default function Dashboard() {
   // Controlled input form states for creating new pipeline configurations
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+
+  // Search query and active category filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('ALL');
 
   // Tracks open/closed toggle states for the log terminal panel of each pipeline (keyed by pipeline.id)
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
@@ -87,14 +91,12 @@ export default function Dashboard() {
   } = usePipelines();
 
   /**
-   * Side Effect: Watches status transitions returned by live polling (every 2 seconds).
-   * Fires a success or failure toast only when a transition finishes (e.g. RUNNING -> SUCCESS).
+   * Watch status transitions returned by live polling (every 2 seconds) and trigger toasts.
    */
   useEffect(() => {
     pipelines.forEach((pipeline) => {
       const prevStatus = previousStatusMap.current[pipeline.id];
 
-      // Verify that status actually changed from a prior known state
       if (prevStatus && prevStatus !== pipeline.status) {
         if (pipeline.status === 'FAILED') {
           toast.error(`Pipeline "${pipeline.name}" failed execution!`, {
@@ -107,14 +109,43 @@ export default function Dashboard() {
         }
       }
 
-      // Record the latest observed status for comparison on the next poll cycle
       previousStatusMap.current[pipeline.id] = pipeline.status;
     });
   }, [pipelines]);
 
   /**
-   * Toggle visibility of the console log viewer for a targeted pipeline item.
+   * Compute aggregated metrics for KPI overview cards.
    */
+  const metrics = useMemo(() => {
+    const total = pipelines.length;
+    const running = pipelines.filter((p) => p.status === 'RUNNING').length;
+    const success = pipelines.filter((p) => p.status === 'SUCCESS').length;
+    const failed = pipelines.filter((p) => p.status === 'FAILED').length;
+    const completed = success + failed;
+    const successRate = completed > 0 ? Math.round((success / completed) * 100) : 0;
+
+    return { total, running, success, failed, successRate };
+  }, [pipelines]);
+
+  /**
+   * Filter pipeline list based on search keywords and status tab selection.
+   */
+  const filteredPipelines = useMemo(() => {
+    return pipelines.filter((pipeline) => {
+      const matchesStatus =
+        statusFilter === 'ALL' ? true : pipeline.status === statusFilter;
+
+      const normalizedQuery = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !normalizedQuery ||
+        pipeline.name.toLowerCase().includes(normalizedQuery) ||
+        pipeline.id.toLowerCase().includes(normalizedQuery) ||
+        (pipeline.description && pipeline.description.toLowerCase().includes(normalizedQuery));
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [pipelines, statusFilter, searchQuery]);
+
   const toggleLogs = (id: string) => {
     setExpandedLogs((prev) => ({
       ...prev,
@@ -122,9 +153,6 @@ export default function Dashboard() {
     }));
   };
 
-  /**
-   * Dispatches create pipeline request to backend API and clears input fields on success.
-   */
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -141,11 +169,7 @@ export default function Dashboard() {
     );
   };
 
-  /**
-   * Dispatches delete pipeline request with safe confirmation and running-state protection.
-   */
   const handleDelete = (id: string, pipelineName: string, status: PipelineStatus) => {
-    // Guard against deleting active executions
     if (status === 'RUNNING') {
       toast.error('Cannot delete an actively running pipeline');
       return;
@@ -173,7 +197,27 @@ export default function Dashboard() {
           <p className="text-gray-600">CRAI Medical Image Processing Monitoring Dashboard</p>
         </header>
 
-        {/* Section 1: Form to register new pipelines */}
+        {/* Analytics & Metrics Overview */}
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Pipelines</span>
+            <div className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Active Executions</span>
+            <div className="text-2xl font-bold text-blue-600 mt-1">{metrics.running}</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Success Rate</span>
+            <div className="text-2xl font-bold text-emerald-600 mt-1">{metrics.successRate}%</div>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <span className="text-xs font-semibold text-red-600 uppercase tracking-wider">Failed Jobs</span>
+            <div className="text-2xl font-bold text-red-600 mt-1">{metrics.failed}</div>
+          </div>
+        </section>
+
+        {/* Pipeline Creation Form */}
         <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <h2 className="text-xl font-semibold mb-4 text-gray-800">Create New Pipeline</h2>
           <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-4">
@@ -202,31 +246,60 @@ export default function Dashboard() {
           </form>
         </section>
 
-        {/* Section 2: Real-time list of all registered pipelines */}
+        {/* Pipelines Search, Filter & List Section */}
         <section className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-semibold text-gray-800">Active Pipelines</h2>
+          <div className="p-6 border-b space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <h2 className="text-xl font-semibold text-gray-800">Active Pipelines</h2>
+              
+              {/* Search Bar */}
+              <input
+                type="text"
+                placeholder="Search name, description, or ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-72 border rounded-md px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Status Filter Tabs */}
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+              {(['ALL', 'PENDING', 'RUNNING', 'SUCCESS', 'FAILED'] as FilterStatus[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setStatusFilter(tab)}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+                    statusFilter === tab
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Fallback states for initial loading, errors, and empty lists */}
+          {/* List States */}
           {isLoading ? (
             <div className="p-8 text-center text-gray-500">Loading pipelines...</div>
           ) : isError ? (
             <div className="p-8 text-center text-red-500">
               Failed to connect to backend server. Make sure FastAPI is running!
             </div>
-          ) : pipelines.length === 0 ? (
+          ) : filteredPipelines.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
-              No pipelines created yet. Create one above to get started.
+              {pipelines.length === 0
+                ? 'No pipelines created yet. Create one above to get started.'
+                : 'No pipelines match your current search and filter criteria.'}
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {pipelines.map((pipeline) => (
+              {filteredPipelines.map((pipeline) => (
                 <div
                   key={pipeline.id}
                   className="p-6 space-y-4 hover:bg-gray-50 transition-colors"
                 >
-                  {/* Pipeline summary line with controls */}
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
@@ -240,7 +313,6 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {/* Button to toggle collapsible terminal logs */}
                       <button
                         onClick={() => toggleLogs(pipeline.id)}
                         className="text-xs font-medium text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md transition-colors border border-gray-300"
@@ -250,7 +322,6 @@ export default function Dashboard() {
                           : `View Logs (${pipeline.logs?.length || 0})`}
                       </button>
 
-                      {/* Trigger button for starting simulation execution */}
                       <button
                         onClick={() => startPipeline(pipeline.id)}
                         disabled={pipeline.status === 'RUNNING'}
@@ -259,7 +330,6 @@ export default function Dashboard() {
                         {pipeline.status === 'RUNNING' ? 'Processing...' : 'Start Execution'}
                       </button>
 
-                      {/* Delete action button */}
                       <button
                         onClick={() => handleDelete(pipeline.id, pipeline.name, pipeline.status)}
                         disabled={pipeline.status === 'RUNNING' || isDeleting}
@@ -273,12 +343,10 @@ export default function Dashboard() {
                   {/* Collapsible Execution Log Terminal */}
                   {expandedLogs[pipeline.id] && (
                     <div className="bg-slate-950 text-slate-100 p-4 rounded-md font-mono text-xs space-y-1.5 border border-slate-800 shadow-inner max-h-56 overflow-y-auto">
-                      {/* Terminal header line */}
                       <div className="text-slate-500 border-b border-slate-800 pb-1 mb-2">
                         Execution Console Logs — ID: {pipeline.id}
                       </div>
 
-                      {/* Output each log entry with timestamp and severity tag */}
                       {pipeline.logs && pipeline.logs.length > 0 ? (
                         pipeline.logs.map((log: LogEntry, index: number) => (
                           <div key={index} className="flex items-start gap-2">
