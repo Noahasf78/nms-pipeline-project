@@ -68,3 +68,18 @@ class JSONPipelineRepository:
         new_log = LogEntry(message=message, level=level, timestamp=datetime.utcnow())
         pipeline.logs.append(new_log)
         return self.save(pipeline)
+    
+    # Delete a pipeline by ID from storage
+    def delete(self, pipeline_id: str) -> bool:
+        pipelines = self.get_all()
+        initial_count = len(pipelines)
+        
+        # Filter out the pipeline to be removed
+        filtered_pipelines = [p for p in pipelines if p.id != pipeline_id]
+        
+        # If lengths match, the ID was not found
+        if len(filtered_pipelines) == initial_count:
+            return False
+            
+        self._write_file([p.model_dump() for p in filtered_pipelines])
+        return True

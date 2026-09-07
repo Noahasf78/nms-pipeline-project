@@ -100,3 +100,23 @@ def start_pipeline(
     # Dispatch to background tasks
     background_tasks.add_task(simulate_pipeline_execution, pipeline_id, repo)
     return pipeline
+
+# Endpoint to delete an existing pipeline
+@app.delete("/api/pipelines/{pipeline_id}", status_code=204)
+def delete_pipeline(pipeline_id: str, repo: JSONPipelineRepository = Depends(get_repository)):
+    """
+    Deletes a pipeline and its execution history by unique ID.
+    """
+    pipeline = repo.get_by_id(pipeline_id)
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+        
+    # Prevent deleting a pipeline currently executing in the background
+    if pipeline.status == PipelineStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Cannot delete an actively running pipeline")
+
+    deleted = repo.delete(pipeline_id)
+    if not deleted:
+        raise HTTPException(status_code=500, detail="Failed to delete pipeline")
+        
+    return None
