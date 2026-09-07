@@ -22,25 +22,25 @@ const getStatusBadge = (status: PipelineStatus) => {
   switch (status) {
     case 'PENDING':
       return (
-        <span className="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-yellow-300">
+        <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-300 dark:border-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-yellow-300">
           PENDING
         </span>
       );
     case 'RUNNING':
       return (
-        <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-300 animate-pulse">
+        <span className="bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-300 animate-pulse">
           RUNNING...
         </span>
       );
     case 'SUCCESS':
       return (
-        <span className="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-green-300">
+        <span className="bg-green-100 text-green-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-green-300">
           SUCCESS
         </span>
       );
     case 'FAILED':
       return (
-        <span className="bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-red-300">
+        <span className="bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-red-300">
           FAILED
         </span>
       );
@@ -64,6 +64,9 @@ const getLogLevelColor = (level: string) => {
 };
 
 export default function Dashboard() {
+  // Theme state persisted in browser storage
+  const [darkMode, setDarkMode] = useState(false);
+
   // Controlled input form states for creating new pipeline configurations
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -89,6 +92,33 @@ export default function Dashboard() {
     deletePipeline,
     isDeleting,
   } = usePipelines();
+
+  /**
+   * Load saved theme from localStorage on initial page mount.
+   */
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('nms_theme');
+    if (savedTheme === 'dark') {
+      setDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  /**
+   * Toggle between Dark Mode and Light Mode with class application and persistence.
+   */
+  const handleToggleTheme = () => {
+    const nextMode = !darkMode;
+    setDarkMode(nextMode);
+
+    if (nextMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('nms_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('nms_theme', 'light');
+    }
+  };
 
   /**
    * Watch status transitions returned by live polling (every 2 seconds) and trigger toasts.
@@ -189,44 +219,62 @@ export default function Dashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
+    <main className="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 p-8 transition-colors">
       <div className="max-w-5xl mx-auto space-y-8">
-        {/* Application Header */}
-        <header className="border-b pb-4">
-          <h1 className="text-3xl font-bold text-gray-900">NMS Pipeline Simulator</h1>
-          <p className="text-gray-600">CRAI Medical Image Processing Monitoring Dashboard</p>
+        {/* Application Header with Theme Toggle */}
+        <header className="border-b border-gray-200 dark:border-slate-800 pb-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">NMS Pipeline Simulator</h1>
+            <p className="text-gray-600 dark:text-slate-400">CRAI Medical Image Processing Monitoring Dashboard</p>
+          </div>
+
+          <button
+            onClick={handleToggleTheme}
+            aria-label="Toggle Theme"
+            className="p-2.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 transition-colors shadow-sm cursor-pointer"
+          >
+            {darkMode ? (
+              <span className="flex items-center gap-2 text-sm font-medium">
+                ☀️ Light Mode
+              </span>
+            ) : (
+              <span className="flex items-center gap-2 text-sm font-medium">
+                🌙 Dark Mode
+              </span>
+            )}
+          </button>
         </header>
 
         {/* Analytics & Metrics Overview */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Pipelines</span>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{metrics.total}</div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800">
+            <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Total Pipelines</span>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{metrics.total}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Active Executions</span>
-            <div className="text-2xl font-bold text-blue-600 mt-1">{metrics.running}</div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800">
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Active Executions</span>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{metrics.running}</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Success Rate</span>
-            <div className="text-2xl font-bold text-emerald-600 mt-1">{metrics.successRate}%</div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800">
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Success Rate</span>
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{metrics.successRate}%</div>
           </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <span className="text-xs font-semibold text-red-600 uppercase tracking-wider">Failed Jobs</span>
-            <div className="text-2xl font-bold text-red-600 mt-1">{metrics.failed}</div>
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800">
+            <span className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Failed Jobs</span>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{metrics.failed}</div>
           </div>
         </section>
 
         {/* Pipeline Creation Form */}
-        <section className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Create New Pipeline</h2>
+        <section className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-slate-100">Create New Pipeline</h2>
           <form onSubmit={handleCreate} className="flex flex-col sm:flex-row gap-4">
             <input
               type="text"
               placeholder="Pipeline Name (e.g. Brain MRI Segmentation)"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="flex-1 border rounded-md px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-md px-4 py-2 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
             <input
@@ -234,12 +282,12 @@ export default function Dashboard() {
               placeholder="Description (optional)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="flex-1 border rounded-md px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-md px-4 py-2 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
               disabled={isCreating}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md text-sm transition-colors disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md text-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
               {isCreating ? 'Creating...' : 'Create Pipeline'}
             </button>
@@ -247,31 +295,31 @@ export default function Dashboard() {
         </section>
 
         {/* Pipelines Search, Filter & List Section */}
-        <section className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b space-y-4">
+        <section className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 dark:border-slate-800 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-xl font-semibold text-gray-800">Active Pipelines</h2>
-              
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-slate-100">Active Pipelines</h2>
+
               {/* Search Bar */}
               <input
                 type="text"
                 placeholder="Search name, description, or ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full sm:w-72 border rounded-md px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full sm:w-72 border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-md px-3 py-1.5 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             {/* Status Filter Tabs */}
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 dark:border-slate-800">
               {(['ALL', 'PENDING', 'RUNNING', 'SUCCESS', 'FAILED'] as FilterStatus[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setStatusFilter(tab)}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${
+                  className={`text-xs font-medium px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
                     statusFilter === tab
                       ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                   }`}
                 >
                   {tab}
@@ -282,40 +330,40 @@ export default function Dashboard() {
 
           {/* List States */}
           {isLoading ? (
-            <div className="p-8 text-center text-gray-500">Loading pipelines...</div>
+            <div className="p-8 text-center text-gray-500 dark:text-slate-400">Loading pipelines...</div>
           ) : isError ? (
-            <div className="p-8 text-center text-red-500">
+            <div className="p-8 text-center text-red-500 dark:text-red-400">
               Failed to connect to backend server. Make sure FastAPI is running!
             </div>
           ) : filteredPipelines.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-8 text-center text-gray-500 dark:text-slate-400">
               {pipelines.length === 0
                 ? 'No pipelines created yet. Create one above to get started.'
                 : 'No pipelines match your current search and filter criteria.'}
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200 dark:divide-slate-800">
               {filteredPipelines.map((pipeline) => (
                 <div
                   key={pipeline.id}
-                  className="p-6 space-y-4 hover:bg-gray-50 transition-colors"
+                  className="p-6 space-y-4 hover:bg-gray-50/50 dark:hover:bg-slate-800/40 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-gray-900">{pipeline.name}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{pipeline.name}</h3>
                         {getStatusBadge(pipeline.status)}
                       </div>
                       {pipeline.description && (
-                        <p className="text-sm text-gray-600">{pipeline.description}</p>
+                        <p className="text-sm text-gray-600 dark:text-slate-400">{pipeline.description}</p>
                       )}
-                      <p className="text-xs text-gray-400">ID: {pipeline.id}</p>
+                      <p className="text-xs text-gray-400 dark:text-slate-500">ID: {pipeline.id}</p>
                     </div>
 
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => toggleLogs(pipeline.id)}
-                        className="text-xs font-medium text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md transition-colors border border-gray-300"
+                        className="text-xs font-medium text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 px-3 py-2 rounded-md transition-colors border border-gray-300 dark:border-slate-700 cursor-pointer"
                       >
                         {expandedLogs[pipeline.id]
                           ? 'Hide Logs'
@@ -325,7 +373,7 @@ export default function Dashboard() {
                       <button
                         onClick={() => startPipeline(pipeline.id)}
                         disabled={pipeline.status === 'RUNNING'}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                       >
                         {pipeline.status === 'RUNNING' ? 'Processing...' : 'Start Execution'}
                       </button>
@@ -333,7 +381,7 @@ export default function Dashboard() {
                       <button
                         onClick={() => handleDelete(pipeline.id, pipeline.name, pipeline.status)}
                         disabled={pipeline.status === 'RUNNING' || isDeleting}
-                        className="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 font-medium px-3 py-2 rounded-md text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 font-medium px-3 py-2 rounded-md text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Delete
                       </button>
