@@ -3,23 +3,23 @@ import { Pipeline, PipelineCreate } from '../types/pipeline';
 
 // Fetch all existing pipelines from the backend
 export const fetchPipelines = async (): Promise<Pipeline[]> => {
-  const response = await api.get<Pipeline[]>('/api/pipelines');
+  const response = await api.get<Pipeline[]>('/pipelines');
   return response.data;
 };
 
 // Create a brand new pipeline entry
 export const createPipeline = async (data: PipelineCreate): Promise<Pipeline> => {
-  const response = await api.post<Pipeline>('/api/pipelines', data);
+  const response = await api.post<Pipeline>('/pipelines', data);
   return response.data;
 };
 
 // Trigger asynchronous background execution for a given pipeline
 export const startPipeline = async (pipelineId: string): Promise<Pipeline> => {
-  const response = await api.post<Pipeline>(`/api/pipelines/${pipelineId}/start`);
+  const response = await api.post<Pipeline>(`/pipelines/${pipelineId}/start`);
   return response.data;
 };
 
 // Delete a pipeline and its logs by unique ID
 export const deletePipeline = async (pipelineId: string): Promise<void> => {
-  await api.delete(`/api/pipelines/${pipelineId}`);
+  await api.delete(`/pipelines/${pipelineId}`);
 };
