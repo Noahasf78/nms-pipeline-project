@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchPipelines, createPipeline, startPipeline } from '../api/pipelineApi';
+import {
+  fetchPipelines,
+  createPipeline,
+  startPipeline,
+  deletePipeline,
+} from '../api/pipelineApi';
 import { Pipeline, PipelineCreate } from '../types/pipeline';
 
 export const usePipelines = () => {
@@ -31,6 +36,7 @@ export const usePipelines = () => {
           status: 'PENDING',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          logs: [],
         };
 
         queryClient.setQueryData<Pipeline[]>(['pipelines'], [
@@ -47,7 +53,7 @@ export const usePipelines = () => {
         queryClient.setQueryData(['pipelines'], context.previousPipelines);
       }
     },
-    // Always refetch from server on completion to ensure perfect synchronization
+    // Always refetch from server on completion to ensure synchronization
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['pipelines'] });
     },
@@ -85,6 +91,36 @@ export const usePipelines = () => {
     },
   });
 
+  // Delete Pipeline Mutation with Optimistic Removal
+  const deleteMutation = useMutation({
+    mutationFn: (pipelineId: string) => deletePipeline(pipelineId),
+    onMutate: async (pipelineId) => {
+      // 1. Cancel ongoing queries to protect optimistic UI state
+      await queryClient.cancelQueries({ queryKey: ['pipelines'] });
+
+      // 2. Snapshot previous state
+      const previousPipelines = queryClient.getQueryData<Pipeline[]>(['pipelines']);
+
+      // 3. Optimistically filter out the deleted pipeline from the cache
+      if (previousPipelines) {
+        queryClient.setQueryData<Pipeline[]>(
+          ['pipelines'],
+          previousPipelines.filter((p) => p.id !== pipelineId)
+        );
+      }
+
+      return { previousPipelines };
+    },
+    onError: (_err, _pipelineId, context) => {
+      if (context?.previousPipelines) {
+        queryClient.setQueryData(['pipelines'], context.previousPipelines);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['pipelines'] });
+    },
+  });
+
   return {
     pipelines: pipelinesQuery.data || [],
     isLoading: pipelinesQuery.isLoading,
@@ -93,5 +129,7 @@ export const usePipelines = () => {
     isCreating: createMutation.isPending,
     startPipeline: startMutation.mutate,
     isStarting: startMutation.isPending,
+    deletePipeline: deleteMutation.mutate,
+    isDeleting: deleteMutation.isPending,
   };
 };
