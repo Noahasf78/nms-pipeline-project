@@ -82,6 +82,8 @@ export default function Dashboard() {
     createPipeline,
     isCreating,
     startPipeline,
+    deletePipeline,
+    isDeleting,
   } = usePipelines();
 
   /**
@@ -137,6 +139,29 @@ export default function Dashboard() {
         },
       }
     );
+  };
+
+  /**
+   * Dispatches delete pipeline request with safe confirmation and running-state protection.
+   */
+  const handleDelete = (id: string, pipelineName: string, status: PipelineStatus) => {
+    // Guard against deleting active executions
+    if (status === 'RUNNING') {
+      toast.error('Cannot delete an actively running pipeline');
+      return;
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to delete "${pipelineName}"?`);
+    if (confirmed) {
+      deletePipeline(id, {
+        onSuccess: () => {
+          toast.success(`Pipeline "${pipelineName}" deleted`);
+        },
+        onError: () => {
+          toast.error('Failed to delete pipeline');
+        },
+      });
+    }
   };
 
   return (
@@ -232,6 +257,15 @@ export default function Dashboard() {
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-md text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {pipeline.status === 'RUNNING' ? 'Processing...' : 'Start Execution'}
+                      </button>
+
+                      {/* Delete action button */}
+                      <button
+                        onClick={() => handleDelete(pipeline.id, pipeline.name, pipeline.status)}
+                        disabled={pipeline.status === 'RUNNING' || isDeleting}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 font-medium px-3 py-2 rounded-md text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Delete
                       </button>
                     </div>
                   </div>
