@@ -81,20 +81,30 @@ nms-pipeline-project/
 │   │   ├── core/
 │   │   │   └── schemas.py
 │   │   ├── repositories/
-│   │   │   └── json_repository.py
+│   │   │   └── pipeline_repository.py
 │   │   └── main.py
 │   ├── data/
 │   │   └── storage.json
-│   └── tests/
-│       └── test_pipelines.py
+│   ├── tests/
+│   │   └── test_pipelines.py
+│   └── requirements.txt
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── api/
+│   │   │   ├── axiosInstance.ts
+│   │   │   └── pipelineApi.ts
 │   │   ├── app/
+│   │   │   ├── favicon.ico
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
 │   │   ├── hooks/
+│   │   │   └── usePipelines.ts
 │   │   ├── providers/
+│   │   │   └── QueryProvider.tsx
 │   │   └── types/
+│   │       └── pipeline.ts
 │   └── package.json
 │
 └── README.md
