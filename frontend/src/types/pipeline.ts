@@ -11,14 +11,14 @@ export interface LogEntry {
 // Interface for creating a new pipeline (Payload sent to POST /api/pipelines)
 export interface PipelineCreate {
   name: string;
-  description?: string;
+  description?: string | null;
 }
 
 // Interface for a complete Pipeline object returned by the API
 export interface Pipeline {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   status: PipelineStatus;
   created_at: string;
   updated_at: string;
