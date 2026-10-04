@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Define allowed statuses to prevent typos (strict typing)
 class PipelineStatus(str, Enum):
@@ -26,7 +26,12 @@ class PipelineBase(BaseModel):
 
 # Schema used when creating a new pipeline via POST requests
 class PipelineCreate(PipelineBase):
-    pass
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Pipeline name must not be blank")
+        return value
 
 # Complete schema representing how a pipeline looks in storage/responses
 class Pipeline(PipelineBase):
